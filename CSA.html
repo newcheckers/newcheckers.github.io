@@ -1,0 +1,936 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Checkers Synthesis Americano</title>
+  <style>
+    :root {
+      --light: #f2efe6;
+      --dark: #6a4b3a;
+      --sel: #2aa9ff;
+      --hint: #35d07f;
+      --cap: #ff6b6b;
+      --panel: #ffffff;
+      --muted: #666;
+      --board-color: #8B4513;
+      --cell-border: #5D4037;
+    }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#f6f6f6; }
+    .wrap { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:1fr 360px; }
+    @media (max-width: 980px){ .wrap{ grid-template-columns:1fr; } }
+    .board{
+      width:min(92vw,720px);
+      aspect-ratio:1/1;
+      display:grid;
+      grid-template-columns:repeat(8,1fr);
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow:0 12px 30px rgba(0,0,0,.12);
+      user-select:none;
+      touch-action:manipulation;
+      background:var(--board-color);
+      border:2px solid var(--cell-border);
+    }
+    .sq{ 
+      display:grid; 
+      place-items:center; 
+      position:relative;
+      background:var(--board-color);
+      border:1px solid var(--cell-border);
+      box-sizing:border-box;
+    }
+    .sq:hover{ 
+      filter:brightness(1.15); 
+      cursor:pointer; 
+      background-color:#9C6B4D;
+    }
+    .sq.sel{ 
+      outline:4px solid var(--sel); 
+      outline-offset:-4px;
+      z-index:2;
+    }
+    .sq.hint{ 
+      outline:4px solid var(--hint); 
+      outline-offset:-4px;
+      z-index:1;
+    }
+    .sq.capHint::after{
+      content:""; 
+      position:absolute; 
+      inset:10%;
+      border:3px dashed var(--cap); 
+      border-radius:10px; 
+      opacity:.9; 
+      pointer-events:none;
+      z-index:1;
+    }
+    .piece{
+      width:76%; 
+      height:76%; 
+      border-radius:999px; 
+      display:grid; 
+      place-items:center;
+      box-shadow:0 10px 18px rgba(0,0,0,.22);
+      z-index:3;
+      position:relative;
+    }
+    .piece.white{ 
+      background:radial-gradient(circle at 30% 30%, #fff, #d8d8d8);
+      border:2px solid #ccc;
+    }
+    .piece.black{ 
+      background:radial-gradient(circle at 30% 30%, #444, #0f0f0f);
+      border:2px solid #222;
+    }
+    .piece.king::before{
+      content:"?"; 
+      font-size:1.2em; 
+      color:rgba(255,215,0,.95);
+      text-shadow:0 2px 4px rgba(0,0,0,.45); 
+      transform:translateY(-1px);
+    }
+    .piece.protected::after{
+      content:"";
+      position:absolute;
+      top:2px;
+      right:2px;
+      width:10px;
+      height:10px;
+      background:rgba(76, 175, 80, 0.7);
+      border-radius:50%;
+    }
+    .side{
+      background:var(--panel); 
+      border-radius:14px; 
+      padding:14px;
+      box-shadow:0 12px 30px rgba(0,0,0,.08);
+      display:grid; 
+      gap:12px; 
+      align-content:start;
+    }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; }
+    button{
+      border:0; 
+      padding:10px 12px; 
+      border-radius:10px;
+      background:#111; 
+      color:#fff; 
+      cursor:pointer; 
+      font-weight:600;
+      transition:all 0.2s;
+    }
+    button:hover{
+      transform:translateY(-2px);
+      box-shadow:0 4px 8px rgba(0,0,0,0.2);
+    }
+    button.secondary{ background:#e9e9e9; color:#111; }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+    .status{ 
+      padding:10px 12px; 
+      border-radius:12px; 
+      background:#f1f1f1;
+      border-left:4px solid var(--sel);
+    }
+    .small{ color:var(--muted); font-size:13px; line-height:1.35; }
+    details{ 
+      background:#fafafa; 
+      border-radius:12px; 
+      padding:10px 12px;
+      border-left:4px solid var(--hint);
+    }
+    details>summary{ 
+      cursor:pointer; 
+      font-weight:700;
+      padding:4px 0;
+    }
+    details>summary:hover{
+      color:#333;
+    }
+    .mode-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border: 2px solid #ddd;
+      background: #f5f5f5;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .mode-btn.active {
+      background: #2aa9ff;
+      color: white;
+      border-color: #2aa9ff;
+    }
+    .mode-btn:hover:not(.active) {
+      background: #e9e9e9;
+    }
+    .game-title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #8B4513;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div><div id="board" class="board" aria-label="Доска"></div></div>
+  <aside class="side">
+    <div class="game-title">Checkers Synthesis Americano</div>
+    
+    <div class="mode-selector">
+      <div id="modeHumanVsAI" class="mode-btn active">Человек vs AI</div>
+      <div id="modeComputerVsHuman" class="mode-btn">Компьютер vs Человек</div>
+    </div>
+    
+    <div class="status" id="status"></div>
+    <div class="row">
+      <button id="newBtn">Новая игра</button>
+      <button id="undoBtn" class="secondary" disabled>Отменить (ход человека)</button>
+      <button id="hintBtn" class="secondary">Подсказка</button>
+    </div>
+    <div class="row">
+      <button id="difficultyEasy" class="secondary" style="background:#4caf50;">Легко</button>
+      <button id="difficultyMedium" class="secondary" style="background:#ff9800;">Средне</button>
+      <button id="difficultyHard" class="secondary" style="background:#f44336;">Сложно</button>
+    </div>
+    <details open>
+      <summary>Правила игры</summary>
+      <div class="small" style="margin-top:8px" id="rulesText">
+        <b>Checkers Synthesis Americano</b><br/><br/>
+        o Обычная шашка: ходит в <b>3</b> направления (вперёд-лево, вперёд-вправо, вперёд-вертикально).<br/>
+        o Обычная шашка бьёт в <b>8</b> направлениях: 4 диагонали + вертикаль вверх/вниз + горизонталь влево/вправо.<br/>
+        o Дамка: ходит как <b>ферзь</b> (8 направлений).<br/>
+        o Шашки могут бить в <b>любых направлениях</b> (диагонали + вертикали + горизонтали).<br/>
+        o <b>СМЕШИВАНИЕ РАЗРЕШЕНО</b>: в одном ходе можно комбинировать диагональное и ортогональное взятие.<br/>
+        o Взятие обязательно (максимальное количество фигур).<br/>
+        o Начальная расстановка: по 24 шашки (8×3) с каждой стороны.<br/>
+        o Ходить можно по всем клеткам (все клетки одного цвета).<br/>
+        o Превращение в дамку происходит на последней горизонтали.<br/>
+        o При превращении в дамку во время взятия, можно продолжить взятие как дамка.
+      </div>
+    </details>
+  </aside>
+</div>
+
+<script>
+const SIZE = 8;
+
+const state = {
+  board: null,
+  turn: "w",
+  selected: null,
+  legalMoves: [],
+  hints: new Map(),
+  busy: false,
+  history: [],
+  aiDepth: 3,
+  transpositionTable: new Map(),
+  gameMode: "humanVsAI"
+};
+
+function cloneBoard(board){ 
+  return board.map(row => row.map(cell => cell ? ({...cell}) : null)); 
+}
+function inBounds(r,c){ 
+  return r>=0 && r<SIZE && c>=0 && c<SIZE; 
+}
+function forwardDir(player){ 
+  return player==="w" ? -1 : +1; 
+}
+function boardHash(board){
+  let hash = "";
+  for (let r=0; r<SIZE; r++){
+    for (let c=0; c<SIZE; c++){
+      const p = board[r][c];
+      hash += p ? `${p.p}${p.k ? 'k' : 'm'}` : "__";
+    }
+  }
+  return hash;
+}
+
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const newBtn = document.getElementById("newBtn");
+const undoBtn = document.getElementById("undoBtn");
+const hintBtn = document.getElementById("hintBtn");
+const diffEasy = document.getElementById("difficultyEasy");
+const diffMedium = document.getElementById("difficultyMedium");
+const diffHard = document.getElementById("difficultyHard");
+const modeHumanVsAI = document.getElementById("modeHumanVsAI");
+const modeComputerVsHuman = document.getElementById("modeComputerVsHuman");
+
+function cellKey(r,c){ 
+  return `${r},${c}`; 
+}
+
+function initialBoard(){
+  const b = Array.from({length: SIZE}, () => Array(SIZE).fill(null));
+  
+  for (let r=0; r<3; r++) {
+    for (let c=0; c<SIZE; c++) {
+      b[r][c] = { p:"b", k:false };
+    }
+  }
+  
+  for (let r=SIZE-3; r<SIZE; r++) {
+    for (let c=0; c<SIZE; c++) {
+      b[r][c] = { p:"w", k:false };
+    }
+  }
+  
+  return b;
+}
+
+function render(){
+  boardEl.innerHTML = "";
+  
+  for (let r=0; r<SIZE; r++){
+    for (let c=0; c<SIZE; c++){
+      const sq = document.createElement("div");
+      sq.className = "sq";
+      sq.dataset.r = r;
+      sq.dataset.c = c;
+
+      if (state.selected && state.selected.r===r && state.selected.c===c) {
+        sq.classList.add("sel");
+      }
+      if (state.hints.has(cellKey(r,c))) {
+        sq.classList.add("hint");
+      }
+
+      const mv = state.hints.get(cellKey(r,c));
+      if (mv && mv.captures.length>0) {
+        sq.classList.add("capHint");
+      }
+
+      const piece = state.board[r][c];
+      if (piece){
+        const p = document.createElement("div");
+        p.className = "piece " + (piece.p==="w" ? "white" : "black") + (piece.k ? " king" : "");
+        
+        if (isProtected(state.board, r, c, piece.p)) {
+          p.classList.add("protected");
+        }
+        
+        sq.appendChild(p);
+      }
+
+      boardEl.appendChild(sq);
+    }
+  }
+
+  const outcome = getOutcome(state.board, state.turn);
+  if (outcome.over){
+    statusEl.innerHTML = `<b>Игра окончена.</b> ${outcome.message}`;
+  } else {
+    let playerName = "";
+    if (state.gameMode === "humanVsAI") {
+      playerName = state.turn==="w" ? "человек (белые)" : "AI (чёрные)";
+    } else {
+      playerName = state.turn==="w" ? "компьютер (белые)" : "человек (чёрные)";
+    }
+    
+    const hintText = state.selected ? 
+      `<span class="small">Выделена шашка. Кликните на подсвеченную клетку для хода</span>` :
+      `<span class="small">Выберите свою шашку для хода</span>`;
+    
+    statusEl.innerHTML =
+      `<b>Ход: ${playerName}</b><br>` +
+      `<span class="small">Режим: СМЕШИВАНИЕ ВЗЯТИЙ РАЗРЕШЕНО</span><br>` +
+      `<span class="small">Возможных ходов: ${state.legalMoves.length}</span><br>` +
+      hintText;
+  }
+}
+
+function updateLegalMoves(){
+  state.legalMoves = getLegalMoves(state.board, state.turn);
+  state.selected = null;
+  state.hints.clear();
+  
+  // Автоматически делаем ход за компьютер, если это его очередь
+  if ((state.gameMode === "humanVsAI" && state.turn === "b") ||
+      (state.gameMode === "computerVsHuman" && state.turn === "w")) {
+    aiTurn();
+  } else {
+    render();
+  }
+}
+
+boardEl.addEventListener("click", (e) => {
+  if (state.busy) return;
+  const target = e.target.closest(".sq");
+  if (!target) return;
+
+  const r = Number(target.dataset.r);
+  const c = Number(target.dataset.c);
+
+  const outcome = getOutcome(state.board, state.turn);
+  if (outcome.over) return;
+  
+  // Проверяем, может ли человек ходить в этом режиме
+  if (state.gameMode === "humanVsAI" && state.turn !== "w") return;
+  if (state.gameMode === "computerVsHuman" && state.turn !== "b") return;
+
+  const mv = state.hints.get(cellKey(r,c));
+  if (mv){
+    state.history = [cloneBoard(state.board)];
+    undoBtn.disabled = false;
+
+    state.board = applyMove(state.board, mv);
+    
+    // Меняем очередь хода
+    state.turn = state.turn === "w" ? "b" : "w";
+    state.selected = null;
+    state.hints.clear();
+    updateLegalMoves();
+    return;
+  }
+
+  // Определяем, какого цвета шашки контролирует человек в текущем режиме
+  const humanColor = state.gameMode === "humanVsAI" ? "w" : "b";
+  const piece = state.board[r][c];
+  if (!piece || piece.p !== humanColor) return;
+
+  state.selected = {r,c};
+  state.hints.clear();
+
+  const movesFromHere = state.legalMoves.filter(m => m.from.r===r && m.from.c===c);
+  for (const m of movesFromHere){
+    const to = m.path[m.path.length-1];
+    state.hints.set(cellKey(to.r,to.c), m);
+  }
+  render();
+});
+
+newBtn.addEventListener("click", () => startGame());
+undoBtn.addEventListener("click", () => {
+  if (state.history.length){
+    state.board = cloneBoard(state.history[0]);
+    // Возвращаем очередь хода человеку
+    state.turn = state.gameMode === "humanVsAI" ? "w" : "b";
+    state.history = [];
+    undoBtn.disabled = true;
+    updateLegalMoves();
+  }
+});
+
+hintBtn.addEventListener("click", () => {
+  // Подсказка только когда ходит человек
+  const humanColor = state.gameMode === "humanVsAI" ? "w" : "b";
+  if (state.turn !== humanColor || state.busy) return;
+  
+  const { move } = minimax(state.board, humanColor, 2, -Infinity, Infinity);
+  if (move) {
+    state.selected = move.from;
+    state.hints.clear();
+    const to = move.path[move.path.length-1];
+    state.hints.set(cellKey(to.r, to.c), move);
+    render();
+  }
+});
+
+// Обработчики изменения режима игры
+modeHumanVsAI.addEventListener("click", () => {
+  if (state.gameMode === "humanVsAI") return;
+  state.gameMode = "humanVsAI";
+  modeHumanVsAI.classList.add("active");
+  modeComputerVsHuman.classList.remove("active");
+  startGame();
+});
+
+modeComputerVsHuman.addEventListener("click", () => {
+  if (state.gameMode === "computerVsHuman") return;
+  state.gameMode = "computerVsHuman";
+  modeComputerVsHuman.classList.add("active");
+  modeHumanVsAI.classList.remove("active");
+  startGame();
+});
+
+diffEasy.addEventListener("click", () => {
+  state.aiDepth = 2;
+  diffEasy.style.background = '#4caf50';
+  diffMedium.style.background = '#e9e9e9';
+  diffHard.style.background = '#e9e9e9';
+});
+
+diffMedium.addEventListener("click", () => {
+  state.aiDepth = 3;
+  diffEasy.style.background = '#e9e9e9';
+  diffMedium.style.background = '#ff9800';
+  diffHard.style.background = '#e9e9e9';
+});
+
+diffHard.addEventListener("click", () => {
+  state.aiDepth = 4;
+  diffEasy.style.background = '#e9e9e9';
+  diffMedium.style.background = '#e9e9e9';
+  diffHard.style.background = '#f44336';
+});
+
+function mkMove(fromR, fromC, path, captures){
+  return { from:{r:fromR,c:fromC}, path, captures };
+}
+
+// Основная функция для получения легальных ходов
+function getLegalMoves(board, player){
+  const captures = [];
+  const normals = [];
+
+  for (let r=0; r<SIZE; r++){
+    for (let c=0; c<SIZE; c++){
+      const piece = board[r][c];
+      if (!piece || piece.p !== player) continue;
+
+      const caps = piece.k
+        ? genKingCaptures(board, r, c, player)
+        : genManCaptures(board, r, c, player);
+
+      captures.push(...caps);
+
+      if (caps.length === 0){
+        const ms = piece.k
+          ? genKingMoves(board, r, c)
+          : genManMoves(board, r, c, player);
+        normals.push(...ms);
+      }
+    }
+  }
+
+  return captures.length ? captures : normals;
+}
+
+// Функция для взятия обычной шашкой (со смешиванием)
+function genManCaptures(board, r, c, player){
+  const startPiece = board[r][c];
+  if (!startPiece) return [];
+  const res = [];
+
+  const dirs8 = [
+    [-1,-1],[-1,+1],[+1,-1],[+1,+1],
+    [-1, 0],[+1, 0],
+    [ 0,-1],[ 0,+1]
+  ];
+
+  function dfs(b, cr, cc, piece, path, caps){
+    let any = false;
+    const curPiece = maybePromote(piece, cr, player);
+
+    if (curPiece.k){
+      // Если шашка стала дамкой, продолжаем взятие как дамка
+      const steps = genKingCaptureSteps(b, cr, cc, player);
+      for (const step of steps){
+        any = true;
+        const nb = applyQueenCaptureStep(b, cr, cc, step, curPiece);
+        dfs(nb.board, step.to.r, step.to.c, nb.movedPiece, 
+            [...path, step.to], [...caps, step.cap]);
+      }
+    } else {
+      // Продолжаем как обычная шашка
+      for (const [dr, dc] of dirs8){
+        const mr = cr+dr, mc = cc+dc;
+        const lr = cr+2*dr, lc = cc+2*dc;
+        if (!inBounds(lr, lc) || !inBounds(mr, mc)) continue;
+
+        const mid = b[mr][mc];
+        if (mid && mid.p !== player && b[lr][lc] === null){
+          any = true;
+          const nb = cloneBoard(b);
+          nb[cr][cc] = null;
+          nb[mr][mc] = null;
+          const moved = {...curPiece};
+          nb[lr][lc] = moved;
+          dfs(nb, lr, lc, moved, [...path, {r:lr, c:lc}], 
+              [...caps, {r:mr, c:mc}]);
+        }
+      }
+    }
+
+    if (!any && caps.length > 0){
+      res.push(mkMove(r, c, path, caps));
+    }
+  }
+
+  dfs(cloneBoard(board), r, c, {...startPiece}, [], []);
+  return res;
+}
+
+// Функция для взятия дамкой (со смешиванием)
+function genKingCaptures(board, r, c, player){
+  const startPiece = board[r][c];
+  if (!startPiece) return [];
+  const res = [];
+
+  function dfs(b, cr, cc, piece, path, caps){
+    let any = false;
+    const steps = genKingCaptureSteps(b, cr, cc, player);
+    
+    for (const step of steps){
+      any = true;
+      const nb = applyQueenCaptureStep(b, cr, cc, step, piece);
+      dfs(nb.board, step.to.r, step.to.c, nb.movedPiece, 
+          [...path, step.to], [...caps, step.cap]);
+    }
+
+    if (!any && caps.length > 0){
+      res.push(mkMove(r, c, path, caps));
+    }
+  }
+
+  dfs(cloneBoard(board), r, c, {...startPiece}, [], []);
+  return res;
+}
+
+// Функция для генерации возможных взятий дамкой (без ограничений по типу)
+function genKingCaptureSteps(board, r, c, player){
+  const dirs8 = [
+    [-1,-1],[-1,+1],[+1,-1],[+1,+1],
+    [-1, 0],[+1, 0],[ 0,-1],[ 0,+1]
+  ];
+
+  const steps = [];
+
+  for (const [dr, dc] of dirs8){
+    let nr = r+dr, nc = c+dc;
+    let seenEnemy = null;
+
+    while (inBounds(nr, nc)){
+      const cell = board[nr][nc];
+
+      if (cell === null){
+        if (seenEnemy){
+          steps.push({ 
+            cap: seenEnemy, 
+            to: {r: nr, c: nc}
+          });
+        }
+      } else {
+        if (cell.p === player) break;
+        if (seenEnemy) break;
+        seenEnemy = { r: nr, c: nc };
+      }
+
+      nr += dr; nc += dc;
+    }
+  }
+
+  return steps;
+}
+
+// Функции для обычных ходов (без взятия)
+function genManMoves(board, r, c, player){
+  const res = [];
+  const dr = forwardDir(player);
+
+  for (const dc of [-1, +1]){
+    const nr = r+dr, nc = c+dc;
+    if (inBounds(nr,nc) && board[nr][nc]===null){
+      res.push(mkMove(r,c,[{r:nr,c:nc}],[]));
+    }
+  }
+  
+  const nr = r+dr, nc = c;
+  if (inBounds(nr,nc) && board[nr][nc]===null){
+    res.push(mkMove(r,c,[{r:nr,c:nc}],[]));
+  }
+  
+  return res;
+}
+
+function genKingMoves(board, r, c){
+  const res = [];
+  const dirs = [
+    [-1,-1],[-1,+1],[+1,-1],[+1,+1],
+    [-1, 0],[+1, 0],[ 0,-1],[ 0,+1]
+  ];
+  for (const [dr,dc] of dirs){
+    let nr=r+dr, nc=c+dc;
+    while (inBounds(nr,nc) && board[nr][nc]===null){
+      res.push(mkMove(r,c,[{r:nr,c:nc}],[]));
+      nr += dr; nc += dc;
+    }
+  }
+  return res;
+}
+
+// Вспомогательные функции
+function applyQueenCaptureStep(board, fromR, fromC, step, piece){
+  const nb = cloneBoard(board);
+  nb[fromR][fromC] = null;
+  nb[step.cap.r][step.cap.c] = null;
+  const movedPiece = {...piece};
+  nb[step.to.r][step.to.c] = movedPiece;
+  return { board: nb, movedPiece };
+}
+
+function maybePromote(piece, r, player){
+  if (piece.k) return piece;
+  const lastRow = (player==="w") ? 0 : SIZE-1;
+  if (r === lastRow) return { ...piece, k:true };
+  return piece;
+}
+
+function applyMove(board, move){
+  const nb = cloneBoard(board);
+  const from = move.from;
+  const piece = nb[from.r][from.c];
+  nb[from.r][from.c] = null;
+
+  for (const cap of move.captures) nb[cap.r][cap.c] = null;
+
+  const last = move.path[move.path.length-1];
+  let moved = {...piece};
+  moved = maybePromote(moved, last.r, moved.p);
+
+  nb[last.r][last.c] = moved;
+  return nb;
+}
+
+function countPieces(board, player){
+  let n=0;
+  for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++){
+    const p = board[r][c];
+    if (p && p.p===player) n++;
+  }
+  return n;
+}
+
+function getOutcome(board, turn){
+  const moves = getLegalMoves(board, turn);
+  const wCount = countPieces(board, "w");
+  const bCount = countPieces(board, "b");
+  if (wCount === 0) return { over:true, message:"Победили чёрные." };
+  if (bCount === 0) return { over:true, message:"Победили белые." };
+  if (moves.length === 0){
+    return { over:true, message: turn==="w" ? "У белых нет ходов. Победили чёрные." : "У чёрных нет ходов. Победили белые." };
+  }
+  return { over:false, message:"" };
+}
+
+function evaluate(board){
+  let score = 0;
+  
+  const mobilityB = getLegalMoves(board, "b").length;
+  const mobilityW = getLegalMoves(board, "w").length;
+  
+  let centerControlB = 0;
+  let centerControlW = 0;
+  
+  for (let r=0; r<SIZE; r++){
+    for (let c=0; c<SIZE; c++){
+      const pc = board[r][c];
+      if (!pc) continue;
+      
+      const isCenter = (r >= 2 && r <= 5 && c >= 2 && c <= 5);
+      const isProtectedPos = isProtected(board, r, c, pc.p);
+      
+      let pieceValue = pc.k ? 8 : 3;
+      
+      if (pc.k) {
+        pieceValue += centerScore(r, c);
+      }
+      
+      if (isCenter) pieceValue += 0.5;
+      if (isProtectedPos) pieceValue += 0.3;
+      
+      if (pc.p === "b") {
+        score += pieceValue;
+        if (isCenter) centerControlB++;
+      } else {
+        score -= pieceValue;
+        if (isCenter) centerControlW++;
+      }
+    }
+  }
+  
+  score += 0.08 * (mobilityB - mobilityW);
+  score += 0.05 * (centerControlB - centerControlW);
+  
+  return score;
+}
+
+function centerScore(r, c){
+  const centerR = Math.abs(r - 3.5);
+  const centerC = Math.abs(c - 3.5);
+  const distFromCenter = Math.sqrt(centerR*centerR + centerC*centerC);
+  return (7 - distFromCenter) * 0.1;
+}
+
+function isProtected(board, r, c, player){
+  const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  let protectCount = 0;
+  
+  for (const [dr, dc] of dirs){
+    const nr = r + dr;
+    const nc = c + dc;
+    if (inBounds(nr, nc) && board[nr][nc] && board[nr][nc].p === player){
+      protectCount++;
+    }
+  }
+  
+  return protectCount >= 2;
+}
+
+function sortMoves(moves, board, player){
+  return moves.sort((a, b) => {
+    const scoreA = moveHeuristic(a, board, player);
+    const scoreB = moveHeuristic(b, board, player);
+    return scoreB - scoreA;
+  });
+}
+
+function moveHeuristic(move, board, player){
+  let score = 0;
+  
+  score += move.captures.length * 5;
+  
+  const lastPos = move.path[move.path.length-1];
+  const piece = board[move.from.r][move.from.c];
+  
+  if (piece && !piece.k) {
+    const lastRow = (player==="w") ? 0 : SIZE-1;
+    if (lastPos.r === lastRow) score += 3;
+  }
+  
+  if (isProtected(board, lastPos.r, lastPos.c, player)) {
+    score += 0.5;
+  }
+  
+  const isCenter = (lastPos.r >= 2 && lastPos.r <= 5 && lastPos.c >= 2 && lastPos.c <= 5);
+  if (isCenter) score += 0.3;
+  
+  return score;
+}
+
+function minimax(board, player, depth, alpha, beta){
+  const hash = boardHash(board) + player + depth;
+  if (state.transpositionTable.has(hash)){
+    return state.transpositionTable.get(hash);
+  }
+  
+  const outcome = getOutcome(board, player);
+  if (outcome.over){
+    let score;
+    if (outcome.message.includes("чёрные")) score = 9999 + depth;
+    else if (outcome.message.includes("белые")) score = -9999 - depth;
+    else score = evaluate(board);
+    
+    const result = { score, move:null };
+    state.transpositionTable.set(hash, result);
+    return result;
+  }
+  
+  if (depth === 0) {
+    const score = evaluate(board);
+    const result = { score, move:null };
+    state.transpositionTable.set(hash, result);
+    return result;
+  }
+
+  let moves = getLegalMoves(board, player);
+  
+  if (player === "b") {
+    moves = sortMoves(moves, board, player);
+  }
+  
+  if (moves.length === 0) {
+    const score = evaluate(board);
+    const result = { score, move:null };
+    state.transpositionTable.set(hash, result);
+    return result;
+  }
+
+  const isMax = (player==="b");
+  let bestMove = moves[0];
+
+  if (isMax){
+    let bestScore = -Infinity;
+    for (const mv of moves){
+      const nb = applyMove(board, mv);
+      const res = minimax(nb, "w", depth-1, alpha, beta);
+      if (res.score > bestScore){ 
+        bestScore = res.score; 
+        bestMove = mv; 
+      }
+      alpha = Math.max(alpha, bestScore);
+      if (beta <= alpha) break;
+    }
+    const result = { score: bestScore, move: bestMove };
+    state.transpositionTable.set(hash, result);
+    return result;
+  } else {
+    let bestScore = Infinity;
+    for (const mv of moves){
+      const nb = applyMove(board, mv);
+      const res = minimax(nb, "b", depth-1, alpha, beta);
+      if (res.score < bestScore){ 
+        bestScore = res.score; 
+        bestMove = mv; 
+      }
+      beta = Math.min(beta, bestScore);
+      if (beta <= alpha) break;
+    }
+    const result = { score: bestScore, move: bestMove };
+    state.transpositionTable.set(hash, result);
+    return result;
+  }
+}
+
+async function aiTurn(){
+  const outcome = getOutcome(state.board, state.turn);
+  if (outcome.over){ 
+    render(); 
+    return; 
+  }
+
+  state.busy = true;
+  render();
+  await new Promise(r => setTimeout(r, 100));
+  
+  state.transpositionTable.clear();
+  
+  // Определяем, за кого играет AI в текущем режиме
+  const aiColor = state.gameMode === "humanVsAI" ? "b" : "w";
+  const { move } = minimax(state.board, aiColor, state.aiDepth, -Infinity, Infinity);
+  
+  if (move) {
+    state.board = applyMove(state.board, move);
+    // Меняем очередь хода
+    state.turn = aiColor === "w" ? "b" : "w";
+  }
+
+  state.busy = false;
+  state.history = [];
+  undoBtn.disabled = true;
+  updateLegalMoves();
+}
+
+function startGame(){
+  state.board = initialBoard();
+  // В зависимости от режима, определяем, кто ходит первым
+  if (state.gameMode === "humanVsAI") {
+    state.turn = "w"; // человек (белые) ходит первым
+  } else {
+    state.turn = "w"; // компьютер (белые) ходит первым
+  }
+  state.selected = null;
+  state.hints.clear();
+  state.history = [];
+  state.transpositionTable.clear();
+  undoBtn.disabled = true;
+  updateLegalMoves();
+}
+
+startGame();
+</script>
+</body>
+</html>
