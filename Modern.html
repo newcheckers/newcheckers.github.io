@@ -1,0 +1,1261 @@
+﻿<!DOCTYPE html>
+<html lang="ru"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Шашки Modern</title>
+  <style>
+    :root {
+      --board-color: #8B4513;
+      --cell-border: #5D4037;
+      --sel: #2aa9ff;
+      --hint: #35d07f;
+      --cap: #ff6b6b;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 12px;
+      touch-action: manipulation;
+    }
+    
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+    }
+
+   .status {
+      text-align: center;
+      margin-bottom: 12px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border-left: 4px solid var(--sel);
+    }
+    
+    .status h2 {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 4px;
+    }
+    
+    .status-info {
+      font-size: 14px;
+      color: #666;
+      min-height: 20px;
+    }
+    
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    
+    .btn {
+      padding: 14px 8px;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      touch-action: manipulation;
+    }
+    
+    .btn:active {
+      transform: scale(0.98);
+    }
+    
+    .btn-primary {
+      background: #4a6cf7;
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: #e9ecef;
+      color: #333;
+    }
+    
+    .btn-danger {
+      background: #ff4757;
+      color: white;
+    }
+    
+    .btn-success {
+      background: #2ed573;
+      color: white;
+    }
+    
+    .board-container {
+      position: relative;
+      width: 100%;
+      margin: 0 auto;
+    }
+    
+    .board {
+      width: 100%;
+      max-width: 400px;
+      margin: 0 auto;
+      aspect-ratio: 7/8;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      touch-action: none;
+      background: var(--board-color);
+      border: 3px solid var(--cell-border);
+    }
+    
+    .sq {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: var(--board-color);
+      border: 1px solid var(--cell-border);
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .sq:active {
+      background-color: #9C6B4D;
+    }
+    
+    .sq.sel {
+      outline: 3px solid var(--sel);
+      outline-offset: -3px;
+      z-index: 2;
+    }
+    
+    .sq.hint {
+      outline: 3px solid var(--hint);
+      outline-offset: -3px;
+      z-index: 1;
+    }
+    
+    .sq.capHint::after {
+      content: "";
+      position: absolute;
+      inset: 12%;
+      border: 2px dashed var(--cap);
+      border-radius: 10px;
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    .piece {
+      width: 72%;
+      height: 72%;
+      border-radius: 50%;
+      box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.25),
+        inset 0 2px 4px rgba(255, 255, 255, 0.3);
+      position: relative;
+      z-index: 3;
+    }
+    
+    .piece.white {
+      background: radial-gradient(circle at 30% 30%, #ffffff, #e0e0e0);
+      border: 2px solid #d4d4d4;
+    }
+    
+    .piece.black {
+      background: radial-gradient(circle at 30% 30%, #555555, #111111);
+      border: 2px solid #333;
+    }
+    
+    .piece.king::before {
+      content: "";
+      position: absolute;
+      width: 36%;
+      height: 36%;
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 2px solid;
+    }
+    
+    .piece.white.king::before {
+      background-color: #000;
+      border-color: #000;
+    }
+    
+    .piece.black.king::before {
+      background-color: #fff;
+      border-color: #fff;
+    }
+    
+    .rules-panel {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+    }
+    
+    .rules-toggle {
+      width: 100%;
+      padding: 14px;
+      background: #4a6cf7;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .rules-content {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #555;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    
+    .rules-content.show {
+      max-height: 400px;
+    }
+    
+    .rules-content ul {
+      padding-left: 20px;
+      margin: 12px 0;
+    }
+    
+    .rules-content li {
+      margin-bottom: 8px;
+    }
+    
+    .ai-info {
+      background: #e3f2fd;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #1565c0;
+      border-left: 4px solid #2196f3;
+    }
+    
+    .ai-info strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+    
+    .turn-indicator {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px 30px;
+      border-radius: 16px;
+      font-size: 20px;
+      font-weight: 600;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    
+    .turn-indicator.show {
+      opacity: 1;
+    }
+    
+    .ai-thinking {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 12px;
+      font-size: 16px;
+      z-index: 999;
+      display: none;
+    }
+    
+    .ai-thinking.show {
+      display: block;
+    }
+    
+    .piece-count {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+    
+    .piece-count span {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .white-count {
+      color: #333;
+    }
+    
+    .black-count {
+      color: #111;
+    }
+    
+    @media (min-width: 768px) {
+      .container {
+        max-width: 500px;
+      }
+      
+      .board {
+        max-width: 450px;
+      }
+      
+      .btn {
+        padding: 16px 12px;
+        font-size: 15px;
+      }
+      
+      .status h2 {
+        font-size: 20px;
+      }
+    }
+    
+    @media (max-height: 700px) {
+      .board {
+        max-width: 350px;
+      }
+      
+      .header, .rules-panel {
+        padding: 12px;
+      }
+      
+      .btn {
+        padding: 12px 8px;
+        font-size: 13px;
+      }
+    }
+    
+    @media (orientation: landscape) and (max-height: 500px) {
+      body {
+        padding: 8px;
+      }
+      
+      .container {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+      
+      .board-container {
+        flex: 0 0 auto;
+        width: 60%;
+      }
+      
+      .header {
+        flex: 1;
+        margin-left: 12px;
+      }
+      
+      .rules-panel {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="status">
+      <h2 id="statusTitle">Ваш ход (Белые)</h2>
+      <div class="status-info" id="statusInfo">Выберите свою шашку</div>
+      <div class="piece-count">
+        <span class="white-count">Белые: <span id="whiteCount">21</span></span>
+        <span class="black-count">Черные: <span id="blackCount">21</span></span>
+      </div>
+    </div>
+    
+    <div class="controls">
+      <button class="btn btn-primary" id="newBtn">
+        <span>🔄</span> Новая
+      </button>
+      <button class="btn btn-success" id="aiLevelBtn">
+        <span>🤖</span> AI: Сильный
+      </button>
+    </div>
+  </div>
+
+  <div class="board-container">
+    <div id="board" class="board"></div>
+    <div class="ai-thinking" id="aiThinking">AI думает...</div>
+  </div>
+  
+  <div class="rules-panel">
+    <button class="rules-toggle" id="rulesToggle">
+      <span>📖 Правила игры</span>
+      <span id="rulesArrow">▼</span>
+    </button>
+    
+    <div class="rules-content" id="rulesContent">
+      <ul>
+        <li><strong>Доска 7×8</strong> клеток</li>
+        <li>Начальная расстановка: по 21 шашке с каждой стороны</li>
+        <li>Обычная шашка ходит вперед по диагонали и вертикали</li>
+        <li><strong>НОВОЕ:</strong> Разрешены горизонтальные ходы влево/вправо</li>
+        <li><strong>Правило чередования:</strong> После горизонтального хода следующий обычный ход должен быть по диагонали или вертикали</li>
+        <li><strong>ВАЖНО:</strong> Правило чередования НЕ применяется к взятиям! Бить можно в любом направлении</li>
+        <li>Диагональные и вертикальные ходы можно делать подряд</li>
+        <li>Бой в 8 направлениях (диагонали + вертикаль + горизонталь)</li>
+        <li>Дамка ходит как ферзь (в любом направлении)</li>
+        <li>Взятие обязательно</li>
+        <li>Нельзя смешивать типы взятия в одном ходе</li>
+        <li>Превращение в дамку на последней горизонтали</li>
+        <li>Авторы игры Alex(brevis) & Judgen Белоусовы</li>
+      </ul>
+      
+      <div class="ai-info">
+        <strong>Сильный AI:</strong>
+        Глубокий поиск (4-5 ходов), позиционная оценка, контроль центра, приоритет дамкам
+      </div>
+    </div>
+  </div>
+  
+  <div class="turn-indicator" id="turnIndicator">Ход AI</div>
+</div>
+
+<script>
+/**********************************************************************
+ * Мобильная версия шашек 7x8 с оптимизацией для Android
+ **********************************************************************/
+const COLS = 7; // 7 вертикалей
+const ROWS = 8; // 8 горизонталей
+
+const state = {
+  board: null,
+  turn: "w",
+  selected: null,
+  legalMoves: [],
+  hints: new Map(),
+  busy: false,
+  history: [],
+  aiLevel: "strong",
+  touchStart: null,
+  // Добавляем отслеживание последнего типа хода для каждого игрока
+  lastMoveType: { w: null, b: null } // null, "horizontal", "non-horizontal"
+};
+
+// DOM элементы
+const boardEl = document.getElementById("board");
+const statusTitle = document.getElementById("statusTitle");
+const statusInfo = document.getElementById("statusInfo");
+const whiteCountEl = document.getElementById("whiteCount");
+const blackCountEl = document.getElementById("blackCount");
+const newBtn = document.getElementById("newBtn");
+const aiLevelBtn = document.getElementById("aiLevelBtn");
+const aiThinking = document.getElementById("aiThinking");
+const turnIndicator = document.getElementById("turnIndicator");
+const rulesToggle = document.getElementById("rulesToggle");
+const rulesContent = document.getElementById("rulesContent");
+const rulesArrow = document.getElementById("rulesArrow");
+
+// Вспомогательные функции
+function cloneBoard(board) { 
+  return board.map(row => row.map(cell => cell ? ({...cell}) : null)); 
+}
+
+function inBounds(r, c) { 
+  return r >= 0 && r < ROWS && c >= 0 && c < COLS; 
+}
+
+function forwardDir(player) { 
+  return player === "w" ? -1 : +1; 
+}
+
+function cellKey(r, c) { 
+  return `${r},${c}`; 
+}
+
+// Начальная расстановка
+function initialBoard() {
+  const b = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+  
+  // Чёрные шашки (верхние 3 ряда)
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < COLS; c++) {
+      b[r][c] = { p: "b", k: false };
+    }
+  }
+  
+  // Белые шашки (нижние 3 ряда)
+  for (let r = ROWS - 3; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      b[r][c] = { p: "w", k: false };
+    }
+  }
+  
+  return b;
+}
+
+// Отрисовка доски
+function render() {
+  boardEl.innerHTML = "";
+  
+  // Подсчет шашек
+  let whiteCount = 0, blackCount = 0;
+  
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const sq = document.createElement("div");
+      sq.className = "sq";
+      sq.dataset.r = r;
+      sq.dataset.c = c;
+      
+      // Подсчет шашек
+      const piece = state.board[r][c];
+      if (piece) {
+        if (piece.p === "w") whiteCount++;
+        else blackCount++;
+      }
+      
+      // Выделение и подсказки
+      if (state.selected && state.selected.r === r && state.selected.c === c) {
+        sq.classList.add("sel");
+      }
+      if (state.hints.has(cellKey(r, c))) {
+        sq.classList.add("hint");
+      }
+      
+      const mv = state.hints.get(cellKey(r, c));
+      if (mv && mv.captures.length > 0) {
+        sq.classList.add("capHint");
+      }
+      
+      // Шашка
+      if (piece) {
+        const p = document.createElement("div");
+        p.className = `piece ${piece.p === "w" ? "white" : "black"}${piece.k ? " king" : ""}`;
+        sq.appendChild(p);
+      }
+      
+      boardEl.appendChild(sq);
+    }
+  }
+  
+  // Обновление счетчиков
+  whiteCountEl.textContent = whiteCount;
+  blackCountEl.textContent = blackCount;
+  
+  // Обновление статуса
+  const outcome = getOutcome(state.board, state.turn);
+  if (outcome.over) {
+    statusTitle.textContent = "Игра окончена";
+    statusInfo.textContent = outcome.message;
+  } else {
+    if (state.turn === "w") {
+      statusTitle.textContent = "Ваш ход (Белые)";
+      
+      // Добавляем информацию о правиле чередования
+      const lastMoveType = state.lastMoveType["w"];
+      if (lastMoveType === "horizontal") {
+        statusInfo.textContent = "Запрещены горизонтальные ходы. Ходите по диагонали или вертикали (или бейте в любом направлении)";
+      } else {
+        statusInfo.textContent = state.selected 
+          ? "Выберите клетку для хода (или бейте в любом направлении)" 
+          : "Выберите свою шашку";
+      }
+    } else {
+      statusTitle.textContent = "Ход AI (Черные)";
+      statusInfo.textContent = "AI обдумывает ход...";
+    }
+  }
+}
+
+// Обновление легальных ходов
+function updateLegalMoves() {
+  state.legalMoves = getLegalMoves(state.board, state.turn);
+  state.selected = null;
+  state.hints.clear();
+  render();
+}
+
+// Touch события для мобильных
+boardEl.addEventListener("touchstart", (e) => {
+  if (state.busy) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const target = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (!target || !target.classList.contains("sq")) return;
+  
+  state.touchStart = { time: Date.now(), target };
+  
+  // Небольшая задержка для отличия тапа от свайпа
+  setTimeout(() => {
+    if (state.touchStart && state.touchStart.target === target) {
+      handleCellClick(target);
+    }
+  }, 150);
+});
+
+boardEl.addEventListener("touchmove", (e) => {
+  // Отменяем обработку клика при движении пальца
+  state.touchStart = null;
+});
+
+boardEl.addEventListener("touchend", (e) => {
+  state.touchStart = null;
+});
+
+// Клик для десктопов и как fallback
+boardEl.addEventListener("click", (e) => {
+  if (state.busy) return;
+  const target = e.target.closest(".sq");
+  if (!target) return;
+  
+  handleCellClick(target);
+});
+
+function handleCellClick(target) {
+  const r = parseInt(target.dataset.r);
+  const c = parseInt(target.dataset.c);
+  
+  const outcome = getOutcome(state.board, state.turn);
+  if (outcome.over) return;
+  if (state.turn !== "w") return;
+  
+  const mv = state.hints.get(cellKey(r, c));
+  if (mv) {
+    // Определяем тип хода ТОЛЬКО для обычных ходов (без взятия)
+    // Взятия НЕ влияют на правило чередования
+    if (mv.captures.length === 0) {
+      const from = mv.from;
+      const to = mv.path[mv.path.length - 1];
+      // Проверяем, является ли ход горизонтальным
+      if (to.r === from.r && Math.abs(to.c - from.c) === 1) {
+        state.lastMoveType[state.turn] = "horizontal";
+      } else {
+        state.lastMoveType[state.turn] = "non-horizontal";
+      }
+    }
+    // При взятии НЕ меняем lastMoveType - правило чередования не применяется
+    
+    // Ход на выбранную клетку
+    state.board = applyMove(state.board, mv);
+    state.turn = "b";
+    state.selected = null;
+    state.hints.clear();
+    updateLegalMoves();
+    
+    // Показываем индикатор хода AI
+    showTurnIndicator();
+    setTimeout(() => aiTurn(), 500);
+    return;
+  }
+  
+  const piece = state.board[r][c];
+  if (!piece || piece.p !== "w") return;
+  
+  // Выбор шашки
+  state.selected = { r, c };
+  state.hints.clear();
+  
+  const movesFromHere = state.legalMoves.filter(m => 
+    m.from.r === r && m.from.c === c
+  );
+  
+  for (const m of movesFromHere) {
+    const to = m.path[m.path.length - 1];
+    state.hints.set(cellKey(to.r, to.c), m);
+  }
+  
+  render();
+}
+
+// Показать индикатор хода AI
+function showTurnIndicator() {
+  turnIndicator.classList.add("show");
+  setTimeout(() => {
+    turnIndicator.classList.remove("show");
+  }, 1000);
+}
+
+// Кнопки управления
+newBtn.addEventListener("click", () => {
+  startGame();
+  // Виброотклик на Android
+  if (navigator.vibrate) navigator.vibrate(50);
+});
+
+aiLevelBtn.addEventListener("click", () => {
+  state.aiLevel = state.aiLevel === "normal" ? "strong" : "normal";
+  aiLevelBtn.innerHTML = state.aiLevel === "normal" 
+    ? '<span>🤖</span> AI: Обычный'
+    : '<span>🤖</span> AI: Сильный';
+  aiLevelBtn.className = state.aiLevel === "normal"
+    ? "btn btn-secondary"
+    : "btn btn-success";
+  if (navigator.vibrate) navigator.vibrate(30);
+});
+
+rulesToggle.addEventListener("click", () => {
+  rulesContent.classList.toggle("show");
+  rulesArrow.textContent = rulesContent.classList.contains("show") ? "▲" : "▼";
+  if (navigator.vibrate) navigator.vibrate(30);
+});
+
+/**********************************************************************
+ * Логика игры
+ **********************************************************************/
+
+function mkMove(fromR, fromC, path, captures) {
+  return { from: { r: fromR, c: fromC }, path, captures };
+}
+
+function getLegalMoves(board, player) {
+  const captures = [];
+  const normals = [];
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const piece = board[r][c];
+      if (!piece || piece.p !== player) continue;
+
+      const caps = piece.k
+        ? genKingCaptures(board, r, c, player)
+        : genManCaptures(board, r, c, player);
+
+      captures.push(...caps);
+
+      if (caps.length === 0) {
+        const ms = piece.k
+          ? genKingMoves(board, r, c)
+          : genManMoves(board, r, c, player);
+        normals.push(...ms);
+      }
+    }
+  }
+
+  return captures.length ? captures : normals;
+}
+
+function genManMoves(board, r, c, player) {
+  const res = [];
+  const dr = forwardDir(player);
+  const lastMoveType = state.lastMoveType[player];
+  
+  // Если последний ход был горизонтальным, запрещаем горизонтальные ходы
+  const canMoveHorizontal = lastMoveType !== "horizontal";
+  
+  // Диагональные ходы вперед (всегда разрешены, если есть место)
+  for (const dc of [-1, +1]) {
+    const nr = r + dr, nc = c + dc;
+    if (inBounds(nr, nc) && board[nr][nc] === null) {
+      res.push(mkMove(r, c, [{ r: nr, c: nc }], []));
+    }
+  }
+  
+  // Вертикальный ход вперед (всегда разрешен, если есть место)
+  const nr = r + dr, nc = c;
+  if (inBounds(nr, nc) && board[nr][nc] === null) {
+    res.push(mkMove(r, c, [{ r: nr, c: nc }], []));
+  }
+  
+  // Горизонтальные ходы (только если разрешены)
+  if (canMoveHorizontal || lastMoveType === null) {
+    // Горизонтально влево
+    const nrLeft = r, ncLeft = c - 1;
+    if (inBounds(nrLeft, ncLeft) && board[nrLeft][ncLeft] === null) {
+      res.push(mkMove(r, c, [{ r: nrLeft, c: ncLeft }], []));
+    }
+    
+    // Горизонтально вправо
+    const nrRight = r, ncRight = c + 1;
+    if (inBounds(nrRight, ncRight) && board[nrRight][ncRight] === null) {
+      res.push(mkMove(r, c, [{ r: nrRight, c: ncRight }], []));
+    }
+  }
+  
+  return res;
+}
+
+function genKingMoves(board, r, c) {
+  const res = [];
+  const dirs = [
+    [-1, -1], [-1, +1], [+1, -1], [+1, +1],
+    [-1, 0], [+1, 0], [0, -1], [0, +1]
+  ];
+  
+  for (const [dr, dc] of dirs) {
+    let nr = r + dr, nc = c + dc;
+    while (inBounds(nr, nc) && board[nr][nc] === null) {
+      res.push(mkMove(r, c, [{ r: nr, c: nc }], []));
+      nr += dr; nc += dc;
+    }
+  }
+  
+  return res;
+}
+
+function genManCaptures(board, r, c, player) {
+  const startPiece = board[r][c];
+  if (!startPiece || startPiece.k) return [];
+  const res = [];
+  
+  // Правило чередования НЕ применяется к взятиям
+  // Можно бить в любом направлении независимо от последнего хода
+  
+  const dirs8 = [
+    [-1, -1], [-1, +1], [+1, -1], [+1, +1], // диагонали
+    [-1, 0], [+1, 0], // вертикали
+    [0, -1], [0, +1]  // горизонтали
+  ];
+
+  function dfs(b, cr, cc, piece, path, caps) {
+    let any = false;
+    const curPiece = maybePromote(piece, cr, player);
+
+    // Для простых шашек проверяем все 8 направлений
+    for (const [dr, dc] of dirs8) {
+      const mr = cr + dr, mc = cc + dc;
+      const lr = cr + 2 * dr, lc = cc + 2 * dc;
+      
+      if (!inBounds(lr, lc) || !inBounds(mr, mc)) continue;
+
+      const mid = b[mr][mc];
+      // Можно бить любую шашку противника, включая дамки
+      if (mid && mid.p !== player && b[lr][lc] === null) {
+        any = true;
+        const nb = cloneBoard(b);
+        nb[cr][cc] = null;
+        nb[mr][mc] = null;
+        const moved = { ...curPiece };
+        nb[lr][lc] = moved;
+        dfs(nb, lr, lc, moved, [...path, { r: lr, c: lc }],
+            [...caps, { r: mr, c: mc }]);
+      }
+    }
+
+    if (!any && caps.length > 0) {
+      res.push(mkMove(r, c, path, caps));
+    }
+  }
+
+  dfs(cloneBoard(board), r, c, { ...startPiece }, [], []);
+  return res;
+}
+
+function genKingCaptures(board, r, c, player) {
+  const startPiece = board[r][c];
+  if (!startPiece) return [];
+  const res = [];
+
+  const dirs8 = [
+    [-1, -1], [-1, +1], [+1, -1], [+1, +1],
+    [-1, 0], [+1, 0], [0, -1], [0, +1]
+  ];
+
+  function dfs(b, cr, cc, piece, path, caps, mode) {
+    let any = false;
+    const steps = genKingCaptureSteps(b, cr, cc, player, mode);
+    
+    for (const step of steps) {
+      any = true;
+      const nextMode = mode || step.mode;
+      const nb = applyQueenCaptureStep(b, cr, cc, step, piece);
+      dfs(nb.board, step.to.r, step.to.c, nb.movedPiece,
+          [...path, step.to], [...caps, step.cap], nextMode);
+    }
+
+    if (!any && caps.length > 0) {
+      res.push(mkMove(r, c, path, caps));
+    }
+  }
+
+  dfs(cloneBoard(board), r, c, { ...startPiece }, [], [], null);
+  return res;
+}
+
+function genKingCaptureSteps(board, r, c, player, mode) {
+  const dirs8 = [
+    [-1, -1], [-1, +1], [+1, -1], [+1, +1],
+    [-1, 0], [+1, 0], [0, -1], [0, +1]
+  ];
+
+  const steps = [];
+
+  for (const [dr, dc] of dirs8) {
+    const dirMode = (dr !== 0 && dc !== 0) ? "diag" : "ortho";
+    if (mode && dirMode !== mode) continue;
+
+    let nr = r + dr, nc = c + dc;
+    let seenEnemy = null;
+
+    while (inBounds(nr, nc)) {
+      const cell = board[nr][nc];
+      if (cell === null) {
+        if (seenEnemy) {
+          steps.push({ cap: seenEnemy, to: { r: nr, c: nc }, mode: dirMode });
+        }
+      } else {
+        if (cell.p === player) break;
+        if (seenEnemy) break;
+        seenEnemy = { r: nr, c: nc };
+      }
+      nr += dr; nc += dc;
+    }
+  }
+
+  return steps;
+}
+
+function applyQueenCaptureStep(board, fromR, fromC, step, piece) {
+  const nb = cloneBoard(board);
+  nb[fromR][fromC] = null;
+  nb[step.cap.r][step.cap.c] = null;
+  const movedPiece = { ...piece };
+  nb[step.to.r][step.to.c] = movedPiece;
+  return { board: nb, movedPiece };
+}
+
+function maybePromote(piece, r, player) {
+  if (piece.k) return piece;
+  const lastRow = player === "w" ? 0 : ROWS - 1;
+  if (r === lastRow) return { ...piece, k: true };
+  return piece;
+}
+
+function applyMove(board, move) {
+  const nb = cloneBoard(board);
+  const from = move.from;
+  const piece = nb[from.r][from.c];
+  nb[from.r][from.c] = null;
+
+  for (const cap of move.captures) nb[cap.r][cap.c] = null;
+
+  const last = move.path[move.path.length - 1];
+  let moved = { ...piece };
+  moved = maybePromote(moved, last.r, moved.p);
+
+  nb[last.r][last.c] = moved;
+  return nb;
+}
+
+function countPieces(board, player) {
+  let n = 0;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (p && p.p === player) n++;
+    }
+  }
+  return n;
+}
+
+function getOutcome(board, turn) {
+  const moves = getLegalMoves(board, turn);
+  const wCount = countPieces(board, "w");
+  const bCount = countPieces(board, "b");
+  
+  if (wCount === 0) return { over: true, message: "Победил AI (чёрные)" };
+  if (bCount === 0) return { over: true, message: "Вы победили! (белые)" };
+  if (moves.length === 0) {
+    return { 
+      over: true, 
+      message: turn === "w" 
+        ? "У вас нет ходов. Победил AI" 
+        : "У AI нет ходов. Вы победили!"
+    };
+  }
+  return { over: false, message: "" };
+}
+
+/**********************************************************************
+ * Усиленный AI (оптимизирован для мобильных)
+ **********************************************************************/
+
+const POSITION_WEIGHTS = [
+  [0, 0, 0, 0, 0, 0, 0],
+  [1, 2, 3, 4, 3, 2, 1],
+  [1, 2, 3, 4, 3, 2, 1],
+  [1, 2, 3, 5, 3, 2, 1],
+  [1, 2, 3, 5, 3, 2, 1],
+  [1, 2, 3, 4, 3, 2, 1],
+  [1, 2, 3, 4, 3, 2, 1],
+  [0, 0, 0, 0, 0, 0, 0],
+];
+
+const KING_POSITION_WEIGHTS = [
+  [0, 0, 0, 0, 0, 0, 0],
+  [1, 1, 2, 3, 2, 1, 1],
+  [2, 2, 3, 4, 3, 2, 2],
+  [3, 3, 4, 5, 4, 3, 3],
+  [3, 3, 4, 5, 4, 3, 3],
+  [2, 2, 3, 4, 3, 2, 2],
+  [1, 1, 2, 3, 2, 1, 1],
+  [0, 0, 0, 0, 0, 0, 0],
+];
+
+function evaluateEnhanced(board) {
+  let score = 0;
+  
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const pc = board[r][c];
+      if (!pc) continue;
+      
+      let pieceValue = 0;
+      
+      if (pc.k) {
+        pieceValue = 8;
+        pieceValue += KING_POSITION_WEIGHTS[r][c] * 0.2;
+        if (c >= 2 && c <= 4 && r >= 2 && r <= 5) pieceValue += 1;
+      } else {
+        pieceValue = 3;
+        pieceValue += POSITION_WEIGHTS[r][c] * 0.3;
+        
+        if (pc.p === "b" && r >= ROWS - 3) pieceValue += 0.5 * (ROWS - r);
+        if (pc.p === "w" && r <= 2) pieceValue += 0.5 * (r + 1);
+        
+        const backRow = pc.p === "b" ? r + 1 : r - 1;
+        if (inBounds(backRow, c) && board[backRow][c] && 
+            board[backRow][c].p === pc.p) pieceValue += 0.3;
+      }
+      
+      for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0], 
+                               [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const nr = r + dr, nc = c + dc;
+        if (inBounds(nr, nc) && board[nr][nc] && board[nr][nc].p === pc.p) {
+          pieceValue += 0.1;
+        }
+      }
+      
+      score += (pc.p === "b") ? pieceValue : -pieceValue;
+    }
+  }
+  
+  const mobilityB = getLegalMoves(board, "b").length;
+  const mobilityW = getLegalMoves(board, "w").length;
+  score += 0.1 * (mobilityB - mobilityW);
+  
+  let centerControlB = 0, centerControlW = 0;
+  const centerCells = [[3, 3], [3, 4], [4, 3], [4, 4]];
+  
+  for (const [r, c] of centerCells) {
+    if (board[r][c]) {
+      if (board[r][c].p === "b") centerControlB += 2;
+      else centerControlW += 2;
+    }
+    
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1], 
+                             [-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (inBounds(nr, nc) && board[nr][nc]) {
+        if (board[nr][nc].p === "b") centerControlB += 0.5;
+        else centerControlW += 0.5;
+      }
+    }
+  }
+  
+  score += 0.05 * (centerControlB - centerControlW);
+  return score;
+}
+
+function evaluateSimple(board) {
+  let score = 0;
+  const mobilityB = getLegalMoves(board, "b").length;
+  const mobilityW = getLegalMoves(board, "w").length;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const pc = board[r][c];
+      if (!pc) continue;
+      const val = pc.k ? 6 : 3;
+      score += (pc.p === "b") ? val : -val;
+    }
+  }
+  
+  score += 0.05 * (mobilityB - mobilityW);
+  return score;
+}
+
+function minimax(board, player, depth, alpha, beta, maximizingPlayer) {
+  const outcome = getOutcome(board, player);
+  if (outcome.over) {
+    if (outcome.message.includes("чёрные")) return { score: 9999 + depth, move: null };
+    if (outcome.message.includes("белые")) return { score: -9999 - depth, move: null };
+  }
+  
+  if (depth === 0) {
+    return {
+      score: state.aiLevel === "strong" ? evaluateEnhanced(board) : evaluateSimple(board),
+      move: null
+    };
+  }
+
+  const moves = getLegalMoves(board, player);
+  if (moves.length === 0) {
+    return {
+      score: state.aiLevel === "strong" ? evaluateEnhanced(board) : evaluateSimple(board),
+      move: null
+    };
+  }
+
+  let sortedMoves = moves;
+  if (state.aiLevel === "strong" && depth > 2) {
+    sortedMoves = [...moves].sort((a, b) => {
+      const aCaptures = a.captures.length;
+      const bCaptures = b.captures.length;
+      if (aCaptures !== bCaptures) return bCaptures - aCaptures;
+      
+      const aPromotes = willPromote(a, player);
+      const bPromotes = willPromote(b, player);
+      return bPromotes - aPromotes;
+    });
+  }
+
+  const isMax = maximizingPlayer;
+  let bestMove = null;
+
+  if (isMax) {
+    let bestScore = -Infinity;
+    for (const mv of sortedMoves) {
+      const nb = applyMove(board, mv);
+      const res = minimax(nb, player === "b" ? "w" : "b", depth - 1, alpha, beta, false);
+      if (res.score > bestScore) {
+        bestScore = res.score;
+        bestMove = mv;
+      }
+      alpha = Math.max(alpha, bestScore);
+      if (beta <= alpha) break;
+    }
+    return { score: bestScore, move: bestMove };
+  } else {
+    let bestScore = Infinity;
+    for (const mv of sortedMoves) {
+      const nb = applyMove(board, mv);
+      const res = minimax(nb, player === "b" ? "w" : "b", depth - 1, alpha, beta, true);
+      if (res.score < bestScore) {
+        bestScore = res.score;
+        bestMove = mv;
+      }
+      beta = Math.min(beta, bestScore);
+      if (beta <= alpha) break;
+    }
+    return { score: bestScore, move: bestMove };
+  }
+}
+
+function willPromote(move, player) {
+  const last = move.path[move.path.length - 1];
+  const lastRow = player === "w" ? 0 : ROWS - 1;
+  return last.r === lastRow;
+}
+
+async function aiTurn() {
+  const outcome = getOutcome(state.board, state.turn);
+  if (outcome.over) {
+    render();
+    return;
+  }
+
+  state.busy = true;
+  aiThinking.classList.add("show");
+  render();
+  
+  await new Promise(r => setTimeout(r, state.aiLevel === "strong" ? 800 : 400));
+
+  const depth = state.aiLevel === "strong" ? 4 : 3;
+  const { move } = minimax(state.board, "b", depth, -Infinity, Infinity, true);
+  
+  if (move) {
+    // Определяем тип хода ТОЛЬКО для обычных ходов (без взятия)
+    // Взятия НЕ влияют на правило чередования
+    if (move.captures.length === 0) {
+      const from = move.from;
+      const to = move.path[move.path.length - 1];
+      // Проверяем, является ли ход горизонтальным
+      if (to.r === from.r && Math.abs(to.c - from.c) === 1) {
+        state.lastMoveType["b"] = "horizontal";
+      } else {
+        state.lastMoveType["b"] = "non-horizontal";
+      }
+    }
+    // При взятии НЕ меняем lastMoveType - правило чередования не применяется
+    
+    state.board = applyMove(state.board, move);
+    if (navigator.vibrate) navigator.vibrate(100);
+  }
+
+  state.turn = "w";
+  state.busy = false;
+  state.history = [];
+  aiThinking.classList.remove("show");
+  updateLegalMoves();
+}
+
+/**********************************************************************
+ * Инициализация игры
+ **********************************************************************/
+
+function startGame() {
+  state.board = initialBoard();
+  state.turn = "w";
+  state.selected = null;
+  state.hints.clear();
+  state.history = [];
+  state.lastMoveType = { w: null, b: null }; // Сбрасываем типы ходов
+  updateLegalMoves();
+  
+  // Виброотклик при старте игры
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+}
+
+// Автоматический старт при загрузке
+document.addEventListener("DOMContentLoaded", () => {
+  startGame();
+  
+  // Предотвращение масштабирования на мобильных
+  document.addEventListener("touchmove", (e) => {
+    if (e.scale !== 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+  
+  // Предотвращение контекстного меню на мобильных
+  document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+  });
+});
+</script>
+
+</body></html>
