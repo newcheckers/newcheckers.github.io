@@ -2,7 +2,7 @@
 <html lang="ru"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>Checkers Modern</title>
+  <title>Шашки ОртоДиа</title>
   <style>
     :root {
       --board-color: #8B4513;
@@ -423,7 +423,7 @@
   
   <div class="rules-panel">
     <button class="rules-toggle" id="rulesToggle">
-      <span>📖 Правила игры</span>
+      <span>📖 Правила игры ОртоДиа</span>
       <span id="rulesArrow">▼</span>
     </button>
     
@@ -433,12 +433,12 @@
         <li>Начальная расстановка: по 21 шашке с каждой стороны</li>
         <li>Обычная шашка ходит вперед по диагонали и вертикали</li>
         <li><strong>НОВОЕ:</strong> Разрешены горизонтальные ходы влево/вправо</li>
-        <li><strong>Правило чередования:</strong> После горизонтального хода следующий ход должен быть по диагонали или вертикали</li>
-        <li>Диагональные и вертикальные ходы можно делать подряд</li>
+        <li><strong>Правило чередования:</strong> После горизонтального хода следующий обычный ход должен быть по диагонали или вертикали</li>
+        <li><strong>ГЛАВНОЕ ИЗМЕНЕНИЕ:</strong> Разрешено смешивание диагонального и ортогонального взятия в одном ходе!</li>
         <li>Бой в 8 направлениях (диагонали + вертикаль + горизонталь)</li>
+        <li>Можно комбинировать типы взятия в одном ходе (например, сначала побить по диагонали, потом по горизонтали)</li>
         <li>Дамка ходит как ферзь (в любом направлении)</li>
         <li>Взятие обязательно</li>
-        <li>Нельзя смешивать типы взятия в одном ходе</li>
         <li>Превращение в дамку на последней горизонтали</li>
         <li>Авторы игры Alex(brevis) & Judgen Белоусовы</li>
       </ul>
@@ -455,7 +455,7 @@
 
 <script>
 /**********************************************************************
- * Мобильная версия шашек 7x8 с оптимизацией для Android
+ * Шашки ОртоДиа: разрешено смешивание диагонального и ортогонального взятия
  **********************************************************************/
 const COLS = 7; // 7 вертикалей
 const ROWS = 8; // 8 горизонталей
@@ -470,8 +470,7 @@ const state = {
   history: [],
   aiLevel: "strong",
   touchStart: null,
-  // Добавляем отслеживание последнего типа хода для каждого игрока
-  lastMoveType: { w: null, b: null } // null, "horizontal", "non-horizontal"
+  lastMoveType: { w: null, b: null }
 };
 
 // DOM элементы
@@ -587,13 +586,11 @@ function render() {
       // Добавляем информацию о правиле чередования
       const lastMoveType = state.lastMoveType["w"];
       if (lastMoveType === "horizontal") {
-        statusInfo.textContent = "Запрещены горизонтальные ходы. Ходите по диагонали или вертикали";
-      } else if (lastMoveType === "non-horizontal") {
-        statusInfo.textContent = "Разрешены любые ходы (диагональ, вертикаль, горизонталь)";
+        statusInfo.textContent = "Запрещены горизонтальные ходы. Ходите по диагонали или вертикали (или бейте в любом направлении)";
       } else {
         statusInfo.textContent = state.selected 
-          ? "Выберите клетку для хода" 
-          : "Выберите свою шашку";
+          ? "Выберите клетку для хода (можно комбинировать взятия!)" 
+          : "Выберите свою шашку (разрешено смешивание взятий)";
       }
     } else {
       statusTitle.textContent = "Ход AI (Черные)";
@@ -656,18 +653,18 @@ function handleCellClick(target) {
   
   const mv = state.hints.get(cellKey(r, c));
   if (mv) {
-    // Определяем тип хода
-    const from = mv.from;
-    const to = mv.path[mv.path.length - 1];
-    let moveType = "non-horizontal";
-    
-    // Проверяем, является ли ход горизонтальным
-    if (to.r === from.r && Math.abs(to.c - from.c) === 1) {
-      moveType = "horizontal";
+    // Определяем тип хода ТОЛЬКО для обычных ходов (без взятия)
+    if (mv.captures.length === 0) {
+      const from = mv.from;
+      const to = mv.path[mv.path.length - 1];
+      // Проверяем, является ли ход горизонтальным
+      if (to.r === from.r && Math.abs(to.c - from.c) === 1) {
+        state.lastMoveType[state.turn] = "horizontal";
+      } else {
+        state.lastMoveType[state.turn] = "non-horizontal";
+      }
     }
-    
-    // Сохраняем тип хода для текущего игрока
-    state.lastMoveType[state.turn] = moveType;
+    // При взятии НЕ меняем lastMoveType - правило чередования не применяется
     
     // Ход на выбранную клетку
     state.board = applyMove(state.board, mv);
@@ -734,7 +731,7 @@ rulesToggle.addEventListener("click", () => {
 });
 
 /**********************************************************************
- * Логика игры
+ * Логика игры ОртоДиа
  **********************************************************************/
 
 function mkMove(fromR, fromC, path, captures) {
@@ -825,38 +822,32 @@ function genKingMoves(board, r, c) {
   
   return res;
 }
-//////////////////////////////////////////////////////////////////////////////////////////////////
+
 function genManCaptures(board, r, c, player) {
   const startPiece = board[r][c];
-  if (!startPiece) return [];
+  if (!startPiece || startPiece.k) return [];
   const res = [];
   
-  // Разделяем направления на диагональные и ортогональные
-  const diagDirs = [
-    [-1, -1], [-1, +1], [+1, -1], [+1, +1]  // диагонали
-  ];
-  
-  const orthoDirs = [
+  // Все направления для взятия (диагональные + ортогональные)
+  const dirs8 = [
+    [-1, -1], [-1, +1], [+1, -1], [+1, +1], // диагонали
     [-1, 0], [+1, 0], // вертикали
     [0, -1], [0, +1]  // горизонтали
   ];
-  
 
-//////////////////////////////////////////////////////////////////////////////////////
-    // Проверяем взятия отдельно для диагональных и ортогональных направлений
-  function dfs(b, cr, cc, piece, path, caps, isDiagonal) {
+  function dfs(b, cr, cc, piece, path, caps) {
     let any = false;
     const curPiece = maybePromote(piece, cr, player);
-    
-    // Используем только один тип направления в рамках одного хода
-    const dirs = isDiagonal ? diagDirs : orthoDirs;
-    
-    for (const [dr, dc] of dirs) {
+
+    // Для простых шашек проверяем все 8 направлений
+    for (const [dr, dc] of dirs8) {
       const mr = cr + dr, mc = cc + dc;
       const lr = cr + 2 * dr, lc = cc + 2 * dc;
+      
       if (!inBounds(lr, lc) || !inBounds(mr, mc)) continue;
 
       const mid = b[mr][mc];
+      // Можно бить любую шашку противника
       if (mid && mid.p !== player && b[lr][lc] === null) {
         any = true;
         const nb = cloneBoard(b);
@@ -864,8 +855,10 @@ function genManCaptures(board, r, c, player) {
         nb[mr][mc] = null;
         const moved = { ...curPiece };
         nb[lr][lc] = moved;
+        
+        // Рекурсивный поиск продолжения взятия
         dfs(nb, lr, lc, moved, [...path, { r: lr, c: lc }],
-            [...caps, { r: mr, c: mc }], isDiagonal);
+            [...caps, { r: mr, c: mc }]);
       }
     }
 
@@ -874,39 +867,26 @@ function genManCaptures(board, r, c, player) {
     }
   }
 
-  // Проверяем диагональные взятия
-  dfs(cloneBoard(board), r, c, { ...startPiece }, [], [], true);
-  
-  // Проверяем ортогональные взятия
-  dfs(cloneBoard(board), r, c, { ...startPiece }, [], [], false);
-  
+  dfs(cloneBoard(board), r, c, { ...startPiece }, [], []);
   return res;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////
 function genKingCaptures(board, r, c, player) {
   const startPiece = board[r][c];
   if (!startPiece) return [];
   const res = [];
 
-  // Разделяем направления на диагональные и ортогональные
-  const diagDirs = [
-    [-1, -1], [-1, +1], [+1, -1], [+1, +1]  // диагонали
-  ];
-  
-  const orthoDirs = [
-    [-1, 0], [+1, 0], // вертикали
-    [0, -1], [0, +1]  // горизонтали
+  const dirs8 = [
+    [-1, -1], [-1, +1], [+1, -1], [+1, +1],
+    [-1, 0], [+1, 0], [0, -1], [0, +1]
   ];
 
-  function dfs(b, cr, cc, piece, path, caps, isDiagonal) {
+  function dfs(b, cr, cc, piece, path, caps) {
     let any = false;
     const curPiece = maybePromote(piece, cr, player);
     
-    // Используем только один тип направления в рамках одного хода
-    const dirs = isDiagonal ? diagDirs : orthoDirs;
-    
-    for (const [dr, dc] of dirs) {
+    // Для дамки проверяем все 8 направлений
+    for (const [dr, dc] of dirs8) {
       // Ищем вражескую шашку в этом направлении
       let foundEnemy = null;
       let foundEmpty = null;
@@ -950,9 +930,10 @@ function genKingCaptures(board, r, c, player) {
         const moved = { ...curPiece };
         nb[foundEmpty.r][foundEmpty.c] = moved;
         
+        // Рекурсивный поиск продолжения взятия
         dfs(nb, foundEmpty.r, foundEmpty.c, moved, 
             [...path, { r: foundEmpty.r, c: foundEmpty.c }],
-            [...caps, { r: foundEnemy.r, c: foundEnemy.c }], isDiagonal);
+            [...caps, { r: foundEnemy.r, c: foundEnemy.c }]);
       }
     }
 
@@ -961,56 +942,8 @@ function genKingCaptures(board, r, c, player) {
     }
   }
 
-  // Проверяем диагональные взятия
-  dfs(cloneBoard(board), r, c, { ...startPiece }, [], [], true);
-  
-  // Проверяем ортогональные взятия
-  dfs(cloneBoard(board), r, c, { ...startPiece }, [], [], false);
-  
+  dfs(cloneBoard(board), r, c, { ...startPiece }, [], []);
   return res;
-}
-
-/////////////////////////////////
-function genKingCaptureSteps(board, r, c, player, mode) {
-  const dirs8 = [
-    [-1, -1], [-1, +1], [+1, -1], [+1, +1],
-    [-1, 0], [+1, 0], [0, -1], [0, +1]
-  ];
-
-  const steps = [];
-
-  for (const [dr, dc] of dirs8) {
-    const dirMode = (dr !== 0 && dc !== 0) ? "diag" : "ortho";
-    if (mode && dirMode !== mode) continue;
-
-    let nr = r + dr, nc = c + dc;
-    let seenEnemy = null;
-
-    while (inBounds(nr, nc)) {
-      const cell = board[nr][nc];
-      if (cell === null) {
-        if (seenEnemy) {
-          steps.push({ cap: seenEnemy, to: { r: nr, c: nc }, mode: dirMode });
-        }
-      } else {
-        if (cell.p === player) break;
-        if (seenEnemy) break;
-        seenEnemy = { r: nr, c: nc };
-      }
-      nr += dr; nc += dc;
-    }
-  }
-
-  return steps;
-}
-
-function applyQueenCaptureStep(board, fromR, fromC, step, piece) {
-  const nb = cloneBoard(board);
-  nb[fromR][fromC] = null;
-  nb[step.cap.r][step.cap.c] = null;
-  const movedPiece = { ...piece };
-  nb[step.to.r][step.to.c] = movedPiece;
-  return { board: nb, movedPiece };
 }
 
 function maybePromote(piece, r, player) {
@@ -1258,25 +1191,24 @@ async function aiTurn() {
   aiThinking.classList.add("show");
   render();
   
-  // AI думает с задержкой для UX
   await new Promise(r => setTimeout(r, state.aiLevel === "strong" ? 800 : 400));
 
   const depth = state.aiLevel === "strong" ? 4 : 3;
   const { move } = minimax(state.board, "b", depth, -Infinity, Infinity, true);
   
   if (move) {
-    // Определяем тип хода для AI
-    const from = move.from;
-    const to = move.path[move.path.length - 1];
-    let moveType = "non-horizontal";
-    
-    // Проверяем, является ли ход горизонтальным
-    if (to.r === from.r && Math.abs(to.c - from.c) === 1) {
-      moveType = "horizontal";
+    // Определяем тип хода ТОЛЬКО для обычных ходов (без взятия)
+    if (move.captures.length === 0) {
+      const from = move.from;
+      const to = move.path[move.path.length - 1];
+      // Проверяем, является ли ход горизонтальным
+      if (to.r === from.r && Math.abs(to.c - from.c) === 1) {
+        state.lastMoveType["b"] = "horizontal";
+      } else {
+        state.lastMoveType["b"] = "non-horizontal";
+      }
     }
-    
-    // Сохраняем тип хода для черных
-    state.lastMoveType["b"] = moveType;
+    // При взятии НЕ меняем lastMoveType - правило чередования не применяется
     
     state.board = applyMove(state.board, move);
     if (navigator.vibrate) navigator.vibrate(100);
@@ -1299,7 +1231,7 @@ function startGame() {
   state.selected = null;
   state.hints.clear();
   state.history = [];
-  state.lastMoveType = { w: null, b: null }; // Сбрасываем типы ходов
+  state.lastMoveType = { w: null, b: null };
   updateLegalMoves();
   
   // Виброотклик при старте игры
